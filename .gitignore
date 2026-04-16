@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Streamlit local cache
+.streamlit/secrets.toml
+
+# OS files
+.DS_Store
+Thumbs.db
