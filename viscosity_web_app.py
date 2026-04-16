@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
-from xgboost import XGBRegressor
+
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -72,6 +72,7 @@ def build_model(dataset_name: str, model_name: str):
         return TransformedTargetRegressor(regressor=reg, transformer=log_transform)
 
     if model_name == "xgb":
+        from xgboost import XGBRegressor
         if dataset_name == "newton":
             reg = XGBRegressor(
                 n_estimators=1200,
