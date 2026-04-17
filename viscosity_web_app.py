@@ -17,6 +17,9 @@ DATASETS = {
         "fixed_model": "xgb",
         "model_dir": BASE_DIR / "trained_newton_models_drop3",
         "summary_file": BASE_DIR / "trained_newton_models_drop3" / "newton_drop3_model_summary.csv",
+        "model_files": {
+            "xgb": "newton_drop3_xgb_model.joblib",
+        },
         "scope_note": "该模型基于牛顿体系数据训练，适用于当前训练范围内的插值或近邻预测。",
     },
     "nonnewton": {
@@ -27,11 +30,14 @@ DATASETS = {
         "fixed_model": "bp",
         "model_dir": BASE_DIR / "trained_nonnewton_models",
         "summary_file": BASE_DIR / "trained_nonnewton_models" / "nonnewton_model_summary.csv",
+        "model_files": {
+            "bp": "nonnewton_bp_model.joblib",
+        },
         "scope_note": "该模型基于非牛顿煤灰渣数据训练，结论适用范围应限定于煤体系。",
     },
 }
 
-MODEL_LABELS = {"bp": "BP", "xgb": "XGBoost", "rf": "RF"}
+MODEL_LABELS = {"bp": "BP", "xgb": "XGBoost"}
 
 
 @st.cache_data(show_spinner=False)
@@ -45,7 +51,7 @@ def load_dataset(dataset_name: str):
 @st.cache_resource(show_spinner=True)
 def get_saved_model(dataset_name: str, model_name: str):
     cfg = DATASETS[dataset_name]
-    model_path = cfg["model_dir"] / f"{dataset_name}_{model_name}_model.joblib"
+    model_path = cfg["model_dir"] / cfg["model_files"][model_name]
     if not model_path.exists():
         raise FileNotFoundError(f"未找到模型文件: {model_path}")
     return joblib.load(model_path)
