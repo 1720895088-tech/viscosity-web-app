@@ -14,7 +14,7 @@ DATASETS = {
         "file": BASE_DIR / "newton_raw.xlsx",
         "columns": ["SiO2", "Al2O3", "Fe2O3", "CaO", "MgO", "K2O", "Na2O", "Si_AI", "T", "viscosity"],
         "feature_cols": ["SiO2", "Al2O3", "Fe2O3", "CaO", "MgO", "K2O", "Na2O", "Si_AI", "T"],
-        "best_model": "xgb",
+        "fixed_model": "xgb",
         "model_dir": BASE_DIR / "trained_newton_models_drop3",
         "summary_file": BASE_DIR / "trained_newton_models_drop3" / "newton_drop3_model_summary.csv",
         "scope_note": "该模型基于牛顿体系数据训练，适用于当前训练范围内的插值或近邻预测。",
@@ -24,7 +24,7 @@ DATASETS = {
         "file": BASE_DIR / "nonnewton_raw.xlsx",
         "columns": ["SiO2", "Al2O3", "CaO", "Fe2O3", "MgO", "K2O", "Na2O", "Si_AI", "shearrate", "T", "viscosity"],
         "feature_cols": ["SiO2", "Al2O3", "CaO", "Fe2O3", "MgO", "K2O", "Na2O", "Si_AI", "shearrate", "T"],
-        "best_model": "bp",
+        "fixed_model": "bp",
         "model_dir": BASE_DIR / "trained_nonnewton_models",
         "summary_file": BASE_DIR / "trained_nonnewton_models" / "nonnewton_model_summary.csv",
         "scope_note": "该模型基于非牛顿煤灰渣数据训练，结论适用范围应限定于煤体系。",
@@ -69,7 +69,11 @@ def get_feature_ranges(dataset_name: str):
 def get_metrics_table(dataset_name: str):
     path = DATASETS[dataset_name]["summary_file"]
     if path.exists():
-        return pd.read_csv(path)
+        df = pd.read_csv(path)
+        fixed_label = MODEL_LABELS[DATASETS[dataset_name]["fixed_model"]]
+        if "model" in df.columns:
+            return df[df["model"] == fixed_label].reset_index(drop=True)
+        return df
     return pd.DataFrame()
 
 
@@ -82,19 +86,12 @@ def format_warning(value, min_v, max_v):
 st.set_page_config(page_title="粘度预测交互页面", page_icon="📈", layout="wide")
 
 st.title("粘度预测交互页面")
-st.caption("基于已经训练并保存好的最优机器学习模型构建的交互工具，用于输入成分与工况后快速预测粘度。")
+st.caption("基于已经训练并保存好的最佳机器学习模型构建的交互工具，用于输入成分与工况后快速预测粘度。")
 
 with st.sidebar:
-    st.header("模型设置")
+    st.header("体系设置")
     dataset_name = st.selectbox("选择体系", options=list(DATASETS.keys()), format_func=lambda x: DATASETS[x]["label"])
-    model_options = ["best", *MODEL_LABELS.keys()]
-    selected_model = st.selectbox(
-        "选择模型",
-        options=model_options,
-        format_func=lambda x: "最优模型" if x == "best" else MODEL_LABELS[x],
-    )
-    if selected_model == "best":
-        selected_model = DATASETS[dataset_name]["best_model"]
+    selected_model = DATASETS[dataset_name]["fixed_model"]
     st.info(f"当前调用模型：{MODEL_LABELS[selected_model]}")
     st.write(DATASETS[dataset_name]["scope_note"])
 
