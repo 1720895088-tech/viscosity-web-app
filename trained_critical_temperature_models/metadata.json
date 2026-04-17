@@ -1,0 +1,14 @@
+{
+  "feature_cols": [
+    "SiO2",
+    "Al2O3",
+    "Fe2O3",
+    "CaO",
+    "MgO",
+    "K2O",
+    "Na2O",
+    "Si/Al"
+  ],
+  "target_col": "Tcv",
+  "note": "Best critical-temperature model for future web integration."
+}
