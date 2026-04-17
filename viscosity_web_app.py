@@ -59,8 +59,17 @@ DISPLAY_LABELS = {
 @st.cache_data(show_spinner=False)
 def load_dataset(dataset_name: str):
     cfg = DATASETS[dataset_name]
+    expected_cols = cfg["columns"]
+
+    # First try reading with the first row treated as header.
+    df = pd.read_excel(cfg["file"])
+    df = df.rename(columns={"Si/AI": "Si_AI", "V": "viscosity"})
+    if set(expected_cols).issubset(set(df.columns)):
+        return df[expected_cols].copy()
+
+    # Fallback for datasets stored without header rows.
     df = pd.read_excel(cfg["file"], header=None)
-    df.columns = cfg["columns"]
+    df.columns = expected_cols
     return df
 
 
