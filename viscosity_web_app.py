@@ -37,11 +37,12 @@ DATASETS = {
         "model_files": {
             "bp": "nonnewton_bp_model.joblib",
         },
-        "scope_note": "This model was trained on non-Newtonian coal ash/slag data, and its applicability should be limited to coal-based systems.",
+        "scope_note": "This model was trained on non-Newtonian-system data.",
     },
 }
 
 MODEL_LABELS = {"bp": "BP", "xgb": "XGBoost"}
+
 DISPLAY_LABELS = {
     "SiO2": "SiO2",
     "Al2O3": "Al2O3",
@@ -105,20 +106,31 @@ def get_feature_ranges(dataset_name: str):
     return stats
 
 
+def format_metrics_table(df):
+    df = df.drop(columns=["split_seed", "candidate_id"], errors="ignore")
+    df = df.rename(columns={"model": "Model", "best_model": "Model"})
+
+    preferred_cols = ["Model", "R2", "RMSE", "MAE", "MAPE"]
+    visible_cols = [col for col in preferred_cols if col in df.columns]
+
+    return df[visible_cols]
+
+
 def get_metrics_table(dataset_name: str):
     path = DATASETS[dataset_name]["summary_file"]
     if path.exists():
         df = pd.read_csv(path)
         fixed_label = MODEL_LABELS[DATASETS[dataset_name]["fixed_model"]]
         if "model" in df.columns:
-            return df[df["model"] == fixed_label].reset_index(drop=True)
-        return df
+            df = df[df["model"] == fixed_label].reset_index(drop=True)
+        return format_metrics_table(df)
     return pd.DataFrame()
 
 
 def get_critical_metrics_table():
     if CRITICAL_SUMMARY_FILE.exists():
-        return pd.read_csv(CRITICAL_SUMMARY_FILE)
+        df = pd.read_csv(CRITICAL_SUMMARY_FILE)
+        return format_metrics_table(df)
     return pd.DataFrame()
 
 
@@ -139,10 +151,16 @@ st.caption(
 with st.sidebar:
     st.header("Run Mode")
     mode = st.radio("Prediction Mode", ["Automatic System Identification", "Manual System Selection"], index=0)
+
     if mode == "Manual System Selection":
-        dataset_name = st.selectbox("Select System", options=list(DATASETS.keys()), format_func=lambda x: DATASETS[x]["label"])
+        dataset_name = st.selectbox(
+            "Select System",
+            options=list(DATASETS.keys()),
+            format_func=lambda x: DATASETS[x]["label"],
+        )
     else:
         dataset_name = None
+
     st.info("Current app configuration: Newtonian System - XGBoost / Non-Newtonian System - BP")
     st.caption(
         "Default rule: if the actual temperature T is greater than or equal to the predicted critical temperature Tcv, "
@@ -158,12 +176,15 @@ st.subheader("Input Parameters")
 inputs = {}
 cols = st.columns(3)
 common_features = ["SiO2", "Al2O3", "Fe2O3", "CaO", "MgO", "K2O", "Na2O", "Si_AI"]
+
 for idx, feature in enumerate(common_features + ["T", "shearrate"]):
     if feature == "shearrate":
         meta = nonnewton_ranges[feature]
     else:
         meta = common_ranges[feature]
+
     label = DISPLAY_LABELS[feature]
+
     with cols[idx % 3]:
         inputs[feature] = st.number_input(
             label,
@@ -178,34 +199,50 @@ st.divider()
 
 if st.button("Run Prediction", type="primary", use_container_width=True):
     critical_input = pd.DataFrame(
-        [[inputs["SiO2"], inputs["Al2O3"], inputs["Fe2O3"], inputs["CaO"], inputs["MgO"], inputs["K2O"], inputs["Na2O"], inputs["Si_AI"]]],
+        [[
+            inputs["SiO2"],
+            inputs["Al2O3"],
+            inputs["Fe2O3"],
+            inputs["CaO"],
+            inputs["MgO"],
+            inputs["K2O"],
+            inputs["Na2O"],
+            inputs["Si_AI"],
+        ]],
         columns=CRITICAL_FEATURE_COLS,
     )
+
     critical_model = get_critical_temperature_model()
     tcv_pred = float(critical_model.predict(critical_input)[0])
 
     current_dataset = dataset_name
     if mode == "Automatic System Identification":
         current_dataset = "newton" if inputs["T"] >= tcv_pred else "nonnewton"
+
     cfg = DATASETS[current_dataset]
     selected_model = cfg["fixed_model"]
+
     X_input = pd.DataFrame([inputs])[cfg["feature_cols"]]
     model = get_saved_model(current_dataset, selected_model)
     pred = float(model.predict(X_input)[0])
 
     left, right = st.columns([1.2, 1.0])
+
     with left:
         st.metric("Predicted Critical Temperature Tcv", f"{tcv_pred:.2f}")
         st.metric("Predicted Viscosity", f"{pred:.4f}")
         st.write(f"Selected System: `{cfg['label']}`")
         st.write(f"Model: `{MODEL_LABELS[selected_model]}`")
         st.write("Status: `Using saved models; no retraining is performed after page launch`")
+
     with right:
         st.markdown("**Input Range Check**")
+
         for feature in common_features + ["T"]:
             meta = common_ranges[feature]
             state = format_warning(inputs[feature], meta["min"], meta["max"])
             st.write(f"- `{feature}`: {state}")
+
         if current_dataset == "nonnewton":
             meta = nonnewton_ranges["shearrate"]
             state = format_warning(inputs["shearrate"], meta["min"], meta["max"])
@@ -214,17 +251,21 @@ if st.button("Run Prediction", type="primary", use_container_width=True):
 st.divider()
 
 left_ref, right_ref = st.columns(2)
+
 with left_ref:
     st.subheader("Critical Temperature Model Performance")
     critical_metrics = get_critical_metrics_table()
+
     if not critical_metrics.empty:
         st.dataframe(critical_metrics, use_container_width=True, hide_index=True)
     else:
         st.info("Critical temperature model performance table was not found.")
+
 with right_ref:
     st.subheader("Viscosity Model Performance")
     current_dataset_for_table = dataset_name if dataset_name is not None else "newton"
     metrics_df = get_metrics_table(current_dataset_for_table)
+
     if not metrics_df.empty:
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
     else:
@@ -235,5 +276,5 @@ with st.expander("App Notes"):
         "1. The app first predicts the critical temperature Tcv based on chemical composition. "
         "2. In automatic mode, if the actual temperature T is greater than or equal to Tcv, "
         "the Newtonian XGBoost model is used; otherwise, the non-Newtonian BP model is used. "
-        "3. The app calls pre-trained model files saved in the current repository. "
+        "3. The app calls pre-trained model files saved in the current repository."
     )
