@@ -14,7 +14,7 @@ CRITICAL_SUMMARY_FILE = CRITICAL_MODEL_DIR / "critical_temperature_best_model_su
 
 DATASETS = {
     "newton": {
-        "label": "牛顿体系",
+        "label": "Newtonian System",
         "file": BASE_DIR / "newton_raw.xlsx",
         "columns": ["SiO2", "Al2O3", "Fe2O3", "CaO", "MgO", "K2O", "Na2O", "Si_AI", "T", "viscosity"],
         "feature_cols": ["SiO2", "Al2O3", "Fe2O3", "CaO", "MgO", "K2O", "Na2O", "Si_AI", "T"],
@@ -24,10 +24,10 @@ DATASETS = {
         "model_files": {
             "xgb": "newton_drop3_xgb_model.joblib",
         },
-        "scope_note": "该模型基于牛顿体系数据训练，适用于当前训练范围内的插值或近邻预测。",
+        "scope_note": "This model was trained on Newtonian-system data and is recommended for interpolation or near-neighbor prediction within the training range.",
     },
     "nonnewton": {
-        "label": "非牛顿体系",
+        "label": "Non-Newtonian System",
         "file": BASE_DIR / "nonnewton_raw.xlsx",
         "columns": ["SiO2", "Al2O3", "CaO", "Fe2O3", "MgO", "K2O", "Na2O", "Si_AI", "shearrate", "T", "viscosity"],
         "feature_cols": ["SiO2", "Al2O3", "CaO", "Fe2O3", "MgO", "K2O", "Na2O", "Si_AI", "shearrate", "T"],
@@ -37,7 +37,7 @@ DATASETS = {
         "model_files": {
             "bp": "nonnewton_bp_model.joblib",
         },
-        "scope_note": "该模型基于非牛顿煤灰渣数据训练，结论适用范围应限定于煤体系。",
+        "scope_note": "This model was trained on non-Newtonian coal ash/slag data, and its applicability should be limited to coal-based systems.",
     },
 }
 
@@ -51,8 +51,8 @@ DISPLAY_LABELS = {
     "K2O": "K2O",
     "Na2O": "Na2O",
     "Si_AI": "Si/Al",
-    "T": "T",
-    "shearrate": "shearrate（仅非牛顿预测时使用）",
+    "T": "Temperature T",
+    "shearrate": "Shear Rate (used only for non-Newtonian prediction)",
 }
 
 
@@ -78,7 +78,7 @@ def get_saved_model(dataset_name: str, model_name: str):
     cfg = DATASETS[dataset_name]
     model_path = cfg["model_dir"] / cfg["model_files"][model_name]
     if not model_path.exists():
-        raise FileNotFoundError(f"未找到模型文件: {model_path}")
+        raise FileNotFoundError(f"Model file not found: {model_path}")
     return joblib.load(model_path)
 
 
@@ -86,7 +86,7 @@ def get_saved_model(dataset_name: str, model_name: str):
 def get_critical_temperature_model():
     model_path = CRITICAL_MODEL_DIR / "critical_temperature_best_model.joblib"
     if not model_path.exists():
-        raise FileNotFoundError(f"未找到临界温度模型文件: {model_path}")
+        raise FileNotFoundError(f"Critical temperature model file not found: {model_path}")
     return joblib.load(model_path)
 
 
@@ -124,30 +124,36 @@ def get_critical_metrics_table():
 
 def format_warning(value, min_v, max_v):
     if value < min_v or value > max_v:
-        return "超出训练范围"
-    return "训练范围内"
+        return "Outside training range"
+    return "Within training range"
 
 
-st.set_page_config(page_title="粘度预测交互页面", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Viscosity Prediction App", page_icon="📈", layout="wide")
 
-st.title("粘度预测交互页面")
-st.caption("基于已经训练并保存好的模型，先预测临界温度，再自动选择牛顿或非牛顿模型进行粘度预测。")
+st.title("Viscosity Prediction App")
+st.caption(
+    "This app uses pre-trained saved models to predict the critical temperature first, "
+    "and then automatically selects the Newtonian or non-Newtonian viscosity model."
+)
 
 with st.sidebar:
-    st.header("运行模式")
-    mode = st.radio("选择预测方式", ["自动判别体系", "手动选择体系"], index=0)
-    if mode == "手动选择体系":
-        dataset_name = st.selectbox("选择体系", options=list(DATASETS.keys()), format_func=lambda x: DATASETS[x]["label"])
+    st.header("Run Mode")
+    mode = st.radio("Prediction Mode", ["Automatic System Identification", "Manual System Selection"], index=0)
+    if mode == "Manual System Selection":
+        dataset_name = st.selectbox("Select System", options=list(DATASETS.keys()), format_func=lambda x: DATASETS[x]["label"])
     else:
         dataset_name = None
-    st.info("当前网页只调用：牛顿体系 XGBoost / 非牛顿体系 BP")
-    st.caption("默认判别规则：当实际温度 T >= 预测临界温度 Tcv 时，归为牛顿区；否则归为非牛顿区。")
+    st.info("Current app configuration: Newtonian System - XGBoost / Non-Newtonian System - BP")
+    st.caption(
+        "Default rule: if the actual temperature T is greater than or equal to the predicted critical temperature Tcv, "
+        "the sample is classified as Newtonian; otherwise, it is classified as non-Newtonian."
+    )
 
 
 common_ranges = get_feature_ranges("newton")
 nonnewton_ranges = get_feature_ranges("nonnewton")
 
-st.subheader("输入参数")
+st.subheader("Input Parameters")
 
 inputs = {}
 cols = st.columns(3)
@@ -170,7 +176,7 @@ for idx, feature in enumerate(common_features + ["T", "shearrate"]):
 
 st.divider()
 
-if st.button("开始预测", type="primary", use_container_width=True):
+if st.button("Run Prediction", type="primary", use_container_width=True):
     critical_input = pd.DataFrame(
         [[inputs["SiO2"], inputs["Al2O3"], inputs["Fe2O3"], inputs["CaO"], inputs["MgO"], inputs["K2O"], inputs["Na2O"], inputs["Si_AI"]]],
         columns=CRITICAL_FEATURE_COLS,
@@ -179,7 +185,7 @@ if st.button("开始预测", type="primary", use_container_width=True):
     tcv_pred = float(critical_model.predict(critical_input)[0])
 
     current_dataset = dataset_name
-    if mode == "自动判别体系":
+    if mode == "Automatic System Identification":
         current_dataset = "newton" if inputs["T"] >= tcv_pred else "nonnewton"
     cfg = DATASETS[current_dataset]
     selected_model = cfg["fixed_model"]
@@ -189,13 +195,13 @@ if st.button("开始预测", type="primary", use_container_width=True):
 
     left, right = st.columns([1.2, 1.0])
     with left:
-        st.metric("预测临界温度 Tcv", f"{tcv_pred:.2f}")
-        st.metric("预测粘度", f"{pred:.4f}")
-        st.write(f"体系判别结果：`{cfg['label']}`")
-        st.write(f"模型：`{MODEL_LABELS[selected_model]}`")
-        st.write("状态：`调用已保存模型，不在页面启动后重复训练`")
+        st.metric("Predicted Critical Temperature Tcv", f"{tcv_pred:.2f}")
+        st.metric("Predicted Viscosity", f"{pred:.4f}")
+        st.write(f"Selected System: `{cfg['label']}`")
+        st.write(f"Model: `{MODEL_LABELS[selected_model]}`")
+        st.write("Status: `Using saved models; no retraining is performed after page launch`")
     with right:
-        st.markdown("**输入范围检查**")
+        st.markdown("**Input Range Check**")
         for feature in common_features + ["T"]:
             meta = common_ranges[feature]
             state = format_warning(inputs[feature], meta["min"], meta["max"])
@@ -209,23 +215,27 @@ st.divider()
 
 left_ref, right_ref = st.columns(2)
 with left_ref:
-    st.subheader("临界温度模型参考性能")
+    st.subheader("Critical Temperature Model Performance")
     critical_metrics = get_critical_metrics_table()
     if not critical_metrics.empty:
         st.dataframe(critical_metrics, use_container_width=True, hide_index=True)
     else:
-        st.info("未找到临界温度模型参考性能表。")
+        st.info("Critical temperature model performance table was not found.")
 with right_ref:
-    st.subheader("粘度模型参考性能")
+    st.subheader("Viscosity Model Performance")
     current_dataset_for_table = dataset_name if dataset_name is not None else "newton"
     metrics_df = get_metrics_table(current_dataset_for_table)
     if not metrics_df.empty:
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
     else:
-        st.info("未找到该体系的参考性能表。")
+        st.info("The performance table for the selected system was not found.")
 
-with st.expander("页面说明"):
+with st.expander("App Notes"):
     st.write(
-        "1. 页面首先基于组成预测临界温度 Tcv；2. 在自动模式下，若实际温度 T >= Tcv，则调用牛顿体系 XGBoost 模型，否则调用非牛顿体系 BP 模型；"
-        "3. 页面调用的是当前路径下已经训练并保存的模型文件；4. 非牛顿体系模型基于煤灰渣数据训练，不建议外推到未覆盖的原料体系。"
+        "1. The app first predicts the critical temperature Tcv based on chemical composition. "
+        "2. In automatic mode, if the actual temperature T is greater than or equal to Tcv, "
+        "the Newtonian XGBoost model is used; otherwise, the non-Newtonian BP model is used. "
+        "3. The app calls pre-trained model files saved in the current repository. "
+        "4. The non-Newtonian model was trained on coal ash/slag data and is not recommended "
+        "for extrapolation to feedstock systems not covered by the training data."
     )
