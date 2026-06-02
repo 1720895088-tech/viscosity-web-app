@@ -236,6 +236,4 @@ with st.expander("App Notes"):
         "2. In automatic mode, if the actual temperature T is greater than or equal to Tcv, "
         "the Newtonian XGBoost model is used; otherwise, the non-Newtonian BP model is used. "
         "3. The app calls pre-trained model files saved in the current repository. "
-        "4. The non-Newtonian model was trained on coal ash/slag data and is not recommended "
-        "for extrapolation to feedstock systems not covered by the training data."
     )
